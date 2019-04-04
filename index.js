@@ -30,6 +30,8 @@ class VPC_O {
   }
 }
 
+let MissingkeywordMap = {};
+
 //Babbys first Parser
 async function Parse(VPC_FILE) {
   console.info("parsing", VPC_FILE.f);
@@ -44,16 +46,19 @@ async function Parse(VPC_FILE) {
   var stack = [];
 
   let getStackTop = (stack) => stack[stack.length - 1];
-  let getStackTopS = (stack) => { let a = getStackTop(stack); if (!a) { 
-    throw ("Stack Empty!"); 
-  } return a; };
-  let startsWithAny = (e,list)=>list.find((i)=>e.startsWith(i));
-  let trimKey = (key)=>key.startsWith('$')? key.substr(1) :key;
+  let getStackTopS = (stack) => {
+    let a = getStackTop(stack); if (!a) {
+      throw ("Stack Empty!");
+    } return a;
+  };
+  let startsWithAny = (e, list) => list.find((i) => e.startsWith(i));
+  let trimKey = (key) => key.startsWith('$') ? key.substr(1) : key;
 
 
-  const configGroups = ["$general", "$compiler", "$linker"];
+  const configGroups = ["$general", "$compiler", "$linker", "$librarian", "$custombuildstep", "$prebuildevent", "$prelinkevent",  "$postbuildevent", "$debugging",  "$manifesttool",  "$xmldocumentgenerator",  "$browseinformation",  "$resources"];
+  const custombuildstepFlags = ["$description", "$commandline", "$outputs"];
   const configCompilerFlags = ["$additionalincludedirectories", "$preprocessordefinitions", "$preprocessordefinitions", "$preprocessordefinitions", "$preprocessordefinitions", "$create/useprecompiledheader", "$create/usepchthroughfile", "$precompiledheaderfile "];
-  const configLinkerFlags = ["$systemlibraries", "$systemframeworks", "$systemlibraries	", "$ignoreimportlibrary","$additionaldependencies", "$additionaldependencies "];
+  const configLinkerFlags = ["$systemlibraries", "$systemframeworks", "$systemlibraries	", "$ignoreimportlibrary", "$additionaldependencies", "$additionaldependencies "];
   const configGeneralFlags = ["$outputdirectory", "$intermediatedirectory"];
 
   //Some things may open scope after, or may not. 
@@ -62,7 +67,7 @@ async function Parse(VPC_FILE) {
 
   fileContents.forEach((v, i) => {
     v = v.toLowerCase().replace(/"/gm, '');
-    if(possibleScope && v !== '{'){
+    if (possibleScope && v !== '{') {
       stack.pop();
     }
     possibleScope = false;
@@ -70,83 +75,101 @@ async function Parse(VPC_FILE) {
     else if (v === '}') {
       scope--;
       stack.pop();
-    }else if (v.startsWith("$macro ")) {
+    } else if (v.startsWith("$macro ")) {
       let mkro = v.split(' ');
       if (vpco.macros[mkro[1]] !== undefined) {
-        console.error ("Macro Redefinition! " + mkro[1] + ":", mkro[2] + ", "+ vpco.macros[mkro[1]]);
+        console.error("Macro Redefinition! " + mkro[1] + ":", mkro[2] + ", " + vpco.macros[mkro[1]]);
       }
       vpco.macros[mkro[1]] = mkro[2];
-    }else if (v.startsWith("$macrorequired ")) {
+    } else if (v.startsWith("$macrorequired ")) {
       let mkro = v.split(' ');
       vpco.reqMacros.push(mkro[1]);
     } else if (v.startsWith("$include")) {
       let inc = v.split(' ');
       vpco.includes.push(inc[1]);
-    //----------------------------------------------
+      //----------------------------------------------
     } else if (v.startsWith("$configuration")) {
       //Config
       //Configs can be attached to any file, or be global.
-      let parent = getStackTop(stack) ||  vpco;
+      let parent = getStackTop(stack) || vpco;
       let config = {};
-      if (parent.configs === undefined){
+      if (parent.configs === undefined) {
         parent.configs = [];
       }
       parent.configs.push(config);
       stack.push(config);
       //todo: parse config extra info
-    } else if (startsWithAny(v,configGroups)) {
+    } else if (startsWithAny(v, configGroups)) {
       //Config Subgroup
-      //Either General, Compiler, or linker
-      const a = startsWithAny(v,configGroups);
-      const cfg = getStackTopS(stack);
-      let cfg_flag = {};
-      cfg[trimKey(a)] = cfg_flag;
-      stack.push(cfg_flag);
-    } else if (startsWithAny(v,configGeneralFlags)) {
+      const a = startsWithAny(v, configGroups);
+      if (v.startsWith("$custombuildstep") && getStackTop(stack) === undefined) {
+        console.info("Rare Floating Build Step");
+        stack.push({data:v.split(' ').slice(1), floatingBuildStep:1});
+      } else {
+        const cfg = getStackTopS(stack);
+        let cfg_flag = {};
+        //TODO, there may be multiple platform dpendant subgroups, change to array
+        cfg[trimKey(a)] = cfg_flag;
+        stack.push(cfg_flag);
+      }
+    } else if (startsWithAny(v, configGeneralFlags)) {
       //Config->General flags
-      let a = startsWithAny(v,configGeneralFlags);
+      let a = startsWithAny(v, configGeneralFlags);
       let cfg_general = getStackTopS(stack);
       cfg_general[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v,configLinkerFlags)) {
+    } else if (startsWithAny(v, configLinkerFlags)) {
       //Config->Linker flags
-      let a = startsWithAny(v,configLinkerFlags);
-      let cfg_linker= getStackTopS(stack);
+      let a = startsWithAny(v, configLinkerFlags);
+      let cfg_linker = getStackTopS(stack);
       cfg_linker[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v,configCompilerFlags)) {
+    } else if (startsWithAny(v, configCompilerFlags)) {
       //Config->Compiler flags
-      let a = startsWithAny(v,configCompilerFlags);
+      let a = startsWithAny(v, configCompilerFlags);
       let cfg_compiler = getStackTopS(stack);
       cfg_compiler[trimKey(a)] = v.split(' ').slice(1);
+    } else if (startsWithAny(v, custombuildstepFlags)) {
+      //Config->custombuildstep Flags 
+      let a = startsWithAny(v, custombuildstepFlags);
+      let cfg_customBuild = getStackTopS(stack);
+      cfg_customBuild[trimKey(a)] = v.split(' ').slice(1);
       //----------------------------------------------
     } else if (v.startsWith("$project")) {
-      let proj = {folders:[],files:[]};
+      let proj = { folders: [], files: [] };
       vpco.project = proj;
       stack.push(proj);
     } else if (v.startsWith("$folder")) {
-      let folder = {folders:[],files:[],libs:[],impLibs:[], data:v.split(' ').slice(1)};
+      let folder = { folders: [], files: [], libs: [], impLibs: [], excludes: [], data: v.split(' ').slice(1) };
       let project = getStackTopS(stack);
       project.folders.push(folder);
       stack.push(folder);
     } else if (v.startsWith("$file")) {
-      let file = {data:v.split(' ').slice(1)};
+      let file = { data: v.split(' ').slice(1) };
       let folder = getStackTopS(stack);
       folder.files.push(file);
       stack.push(file);
       possibleScope = true;
-    } else if (v.startsWith("$lib")) {
-      let lib = {data:v.split(' ').slice(1)};
+    } else if (v.startsWith("$lib ")) {
+      let lib = { data: v.split(' ').slice(1) };
       let folder = getStackTopS(stack);
       folder.libs.push(lib);
-      stack.push(lib);
-      possibleScope = true;
     } else if (v.startsWith("$implib")) {
-      let impLib = {data:v.split(' ').slice(1)};
+      let impLib = { data: v.split(' ').slice(1) };
       let folder = getStackTopS(stack);
       folder.impLibs.push(impLib);
-      stack.push(impLib);
-      possibleScope = true;
+    } else if (v.startsWith("-$")) {
+      let exclude = { data: v.split(' ').slice(1) };
+      let folder = getStackTopS(stack);
+      folder.excludes.push(exclude);
+    } else if (v.startsWith("$additionaloptions")) {
+      //This can appear anywhere, hopefully not floating.
+      let adnopt = { data: v.split(' ').slice(1) };
+      let folder = getStackTopS(stack);
+      folder["additionaloptions"] = adnopt;
     } else {
-      console.info("Unknown keyword", v);
+      console.warn("Unknown keyword", v);
+      const key = v.split(' ')[0];
+      MissingkeywordMap[key] = MissingkeywordMap[key]  || 0;
+      MissingkeywordMap[key]++;
     }
   });
 
@@ -174,20 +197,14 @@ async function Main() {
   const VPC_FILE_LIST = FILE_LIST.filter((v) => v.f.toLowerCase().endsWith(".vpc"));
   console.info("Found VPC Files:", VPC_FILE_LIST.length, "out of total files:", FILE_LIST.length);
 
-
-  /*
-    VPC_FILE_LIST.forEach((v) => {
-      promises.push(
-        new Promise(
-          (resolve) => { resolve(Parse(v)); }
-        )
-      )
-    });
-  */
   let vpos = await Promise.all(VPC_FILE_LIST.map(Parse));
 
   console.info("Done 1", vpos);
-  //Promise.all(promises).then((arr) => console.info("Done ", arr));
+  let keysSorted = Object.keys(MissingkeywordMap).sort(function(a,b){return MissingkeywordMap[b]-MissingkeywordMap[a]})
+
+  for (let index = 0; index < 20; index++) {
+    console.log(keysSorted[index], MissingkeywordMap[keysSorted[index]] );
+  }
 
 }
 
