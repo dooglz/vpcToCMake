@@ -1,0 +1,19 @@
+{
+  "name": "vpctocmake",
+  "version": "1.0.0",
+  "description": "Valve Project Creator to Cmake Converter",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dooglz/vpcToCMake.git"
+  },
+  "author": "dooglz",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dooglz/vpcToCMake/issues"
+  },
+  "homepage": "https://github.com/dooglz/vpcToCMake#readme"
+}
