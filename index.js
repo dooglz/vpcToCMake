@@ -1,8 +1,5 @@
 let fs = require('fs');
 let path = require("path");
-
-//pooop helodjdfjfnnb 
-
 var walkSync = function (dir, fl, d) {
   const files = fs.readdirSync(dir);
   let fileList = fl || [];
