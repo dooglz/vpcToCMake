@@ -1,6 +1,8 @@
 let fs = require('fs');
 let path = require("path");
 
+//pooop helodjdfjfnnb 
+
 var walkSync = function (dir, fl, d) {
   const files = fs.readdirSync(dir);
   let fileList = fl || [];
@@ -49,21 +51,39 @@ async function Parse(VPC_FILE) {
 
   let vpco = new VPC_O();
   vpco.f = VPC_FILE.f;
+
   let scope = 0;
   var stack = [];
 
-  let getStackTop = (stack) => stack[stack.length - 1];
-  let getStackTopS = (stack) => {
-    let a = getStackTop(stack); if (!a) {
+  //Helpers -------------------------
+  //For trimming "$This fromRestOfString", empty string if no space
+  const sliceFirst = (s) => s.indexOf(' ') === -1 ? "" : s.substr(s.indexOf(' ') + 1);
+  //Trims Dollar Sign if it's there.
+  const trimKey = (key) => key.startsWith('$') ? key.substr(1) : key;
+  //simple non-pop() pop.
+  const getStackTop = (stack) => stack[stack.length - 1];
+  //As above but with empty throw
+  const getStackTopS = (stack) => {
+    const a = getStackTop(stack);
+    if (!a) {
       throw ("Stack Empty!");
     } return a;
   };
-  let startsWithAny = (e, list) => list.find((i) => e.toLowerCase().startsWith(i.toLowerCase()));
-  let trimKey = (key) => key.startsWith('$') ? key.substr(1) : key;
+  //Starts with anything from this array
+  const startsWithAny = (e, list) => list.find((i) => e.toLowerCase().startsWith(i.toLowerCase()));
+  //Starts with anything from any of these array
+  const startsWithAnyAny = (e, lists) => {
+    for (list of lists) {
+      let a = startsWithAny(e, list);
+      if (a) { return a; }
+    }
+    return undefined;
+  }
+ //-----------------
 
-
-  const configGroups = ["$general", "$compiler", "$linker", "$librarian", "$custombuildstep", "$prebuildevent", "$prelinkevent", "$postbuildevent", "$debugging", "$manifesttool", "$xmldocumentgenerator", "$browseinformation", "$resources"];
   const custombuildstepFlags = ["$description", "$commandline", "$outputs"];
+  const configGroups = ["$general", "$compiler", "$linker", "$librarian", "$custombuildstep", "$prebuildevent", "$prelinkevent", "$postbuildevent", "$debugging", "$manifesttool", "$xmldocumentgenerator", "$browseinformation", "$resources"];
+  //
   const configPreBuildeventFlags = ["$CommandLine", "$Description", "$ExcludedFromBuild"];
   const configPreLinkeventFlags = ["$CommandLine", "$Description", "$ExcludedFromBuild"];
   const configPostBuildeventFlags = ["$CommandLine", "$Description", "$ExcludedFromBuild"];
@@ -76,6 +96,8 @@ async function Parse(VPC_FILE) {
   const configLinkerFlags = ["$OutputFile", "$ShowProgress", "$Version", "$EnableIncrementalLinking", "$SuppressStartupBanner", "$IgnoreImportLibrary", "$RegisterOutput", "$AdditionalLibraryDirectories", "$LinkLibraryDependencies", "$UseLibraryDependencyInputs", "$UseUNICODEResponseFiles", "$AdditionalDependencies", "$IgnoreAllDefaultLibraries", "$IgnoreSpecificLibrary", "$ModuleDefinitionFile", "$AddModuleToAssembly", "$EmbedManagedResourceFile", "$ForceSymbolReferences", "$DelayLoadedDLLs", "$AssemblyLinkResource", "$GenerateManifest", "$ManifestFile", "$AdditionalManifestDependencies", "$AllowIsolation", "$UACExecutionLevel", "$GenerateDebugInfo", "$GenerateProgramDatabaseFile", "$StripPrivateSymbols", "$MapExports", "$DebuggableAssembly", "$SubSystem", "$HeapReserveSize", "$HeapCommitSize", "$StackReserveSize", "$StackCommitSize", "$EnableLargeAddresses", "$TerminalServer", "$SwapRunFromCD", "$SwapRunFromNetwork", "$Driver", "$RandomizedBaseAddress", "$RandomizedBaseAddress", "$References", "$EnableCOMDATFolding", "$EnableCOMDATFolding", "$OptimizeForWindows98", "$FunctionOrder", "$ProfileGuidedDatabase", "$LinkTimeCodeGeneration", "$MIDLCommands", "$IgnoreEmbeddedIDL", "$MergeIDLBaseFileName", "$TypeLibrary", "$TypeLibResourceID", "$EntryPoint", "$NoEntryPoint", "$SetChecksum", "$BaseAddress", "$FixedBaseAddress", "$TurnOffAssemblyGeneration", "$DelayLoadedDLL", "$ImportLibrary", "$MergeSections", "$TargetMachine", "$Profile", "$CLRThreadAttribute", "$CLRImageType", "$KeyFile", "$KeyContainer", "$DelaySign", "$ErrorReporting", "$CLRUnmanagedCodeCheck", "$ImageHasSafeExceptionHandlers", "$AdditionalOptions", "$SystemLibraries", "$SystemFrameworks", "$GCC_ExtraLinkerFlags"];
   const configGeneralFlags = ["$TargetExtension", "$TargetName", "$outputdirectory", "$intermediatedirectory", "$ExtensionsToDeleteOnClean", "$BuildLogFile", "$InheritedProjectPropertySheets", "$ConfigurationType", "$UseOfMFC", "$UseOfATL", "$MinimizeCRTUseInATL", "$CharacterSet", "$CommonLanguageRuntimeSupport", "$WholeProgramOptimization", "$PlatformToolset", "$ExecutableDirectories", "$GameOutputFile"];
   const configDebuggingFlags = ["$Command", "$CommandArguments", "$WorkingDirectory", "$Attach", "$DebuggerType", "$Environment", "$MergeEnvironment", "$SQLDebugging"];
+  const configChildren = [custombuildstepFlags, configCompilerFlags, configLibrarianFlags, configLinkerFlags, configGeneralFlags, configDebuggingFlags, configPreBuildeventFlags, configPreLinkeventFlags, configPostBuildeventFlags, configManifesttoolFlags, configResourcesFlags, configXmldocumentgeneratorFlags, configBrowseInformationFlags,];
+  
   //Some things may open scope after, or may not. 
   //Setting this to true indicates that if the next token isn't a scope operator, to remove the thing at the top of the stack.
   let possibleScope = false;
@@ -119,141 +141,81 @@ async function Parse(VPC_FILE) {
       let inc = v.split(' ');
       vpco.includes.push(inc[1]);
       //----------------------------------------------
+
     } else if (v.startsWith("$configuration")) {
       //Config
       //Configs can be attached to any file, or be global.
       let parent = getStackTop(stack) || vpco;
-      let config = {};
+      let config = { val: sliceFirst(v) };
       if (parent.configs === undefined) {
         parent.configs = [];
       }
       parent.configs.push(config);
       stack.push(config);
-      //todo: parse config extra info
     } else if (startsWithAny(v, configGroups)) {
       //Config Subgroup
       const a = startsWithAny(v, configGroups);
       if (v.startsWith("$custombuildstep") && getStackTop(stack) === undefined) {
         //console.info("Rare Floating Build Step");
-        let FloatingBuildStep = { data: v.split(' ').slice(1)}
+        let FloatingBuildStep = { data: sliceFirst(v) }
         vpco.others.push({ flag: "custombuildstep", val: FloatingBuildStep });
         stack.push(FloatingBuildStep);
       } else {
         const cfg = getStackTopS(stack);
-        let cfg_flag = {};
-        //TODO, there may be multiple platform dpendant subgroups, change to array
-        cfg[trimKey(a)] = cfg_flag;
+        let cfg_flag = { val: sliceFirst(v) };
+        cfg[trimKey(a)] = cfg[trimKey(a)] || [];
+        cfg[trimKey(a)].push(cfg_flag);
         stack.push(cfg_flag);
       }
-    } else if (startsWithAny(v, configGeneralFlags)) {
-      //Config->General flags
-      let a = startsWithAny(v, configGeneralFlags);
-      let cfg_general = getStackTopS(stack);
-      cfg_general[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, configLinkerFlags)) {
-      //Config->Linker flags
-      let a = startsWithAny(v, configLinkerFlags);
-      let cfg_linker = getStackTopS(stack);
-      cfg_linker[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, configCompilerFlags)) {
-      //Config->Compiler flags
-      let a = startsWithAny(v, configCompilerFlags);
-      let cfg_compiler = getStackTopS(stack);
-      cfg_compiler[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, custombuildstepFlags)) {
-      //Config->custombuildstep Flags 
-      let a = startsWithAny(v, custombuildstepFlags);
-      let cfg_customBuild = getStackTopS(stack);
-      cfg_customBuild[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, configBrowseInformationFlags)) {
-      //Config->BrowseInformationFlags 
-      let a = startsWithAny(v, configBrowseInformationFlags);
-      let cfg_BrowseInformation = getStackTopS(stack);
-      cfg_BrowseInformation[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, configLibrarianFlags)) {
-      //Config->Librarian Flags 
-      let a = startsWithAny(v, configLibrarianFlags);
-      let cfg_Librarian = getStackTopS(stack);
-      cfg_Librarian[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, configPreBuildeventFlags)) {
-      //Config->PreBuildevent Flags 
-      let a = startsWithAny(v, configPreBuildeventFlags);
-      let cfg_PreBuildevent = getStackTopS(stack);
-      cfg_PreBuildevent[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, configPreLinkeventFlags)) {
-      //Config->PreLinkevent Flags 
-      let a = startsWithAny(v, configPreLinkeventFlags);
-      let cfg_PreLinkevent = getStackTopS(stack);
-      cfg_PreLinkevent[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, configPostBuildeventFlags)) {
-      //Config->PostBuildevent Flags 
-      let a = startsWithAny(v, configPostBuildeventFlags);
-      let cfg_PostBuildevent = getStackTopS(stack);
-      cfg_PostBuildevent[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, configXmldocumentgeneratorFlags)) {
-      //Config->Xmldocumentgenerator Flags 
-      let a = startsWithAny(v, configXmldocumentgeneratorFlags);
-      let cfg_Xmldocumentgenerator = getStackTopS(stack);
-      cfg_Xmldocumentgenerator[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, configDebuggingFlags)) {
-      //Config->Debugging Flags 
-      let a = startsWithAny(v, configDebuggingFlags);
-      let cfg_Debugging = getStackTopS(stack);
-      cfg_Debugging[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, configManifesttoolFlags)) {
-      //Config->Manifesttool Flags 
-      let a = startsWithAny(v, configManifesttoolFlags);
-      let cfg_Manifesttool = getStackTopS(stack);
-      cfg_Manifesttool[trimKey(a)] = v.split(' ').slice(1);
-    } else if (startsWithAny(v, configResourcesFlags)) {
-      //Config->configResources Flags 
-      let a = startsWithAny(v, configResourcesFlags);
-      let cfg_Resources = getStackTopS(stack);
-      cfg_Resources[trimKey(a)] = v.split(' ').slice(1);
-
+    } else if (startsWithAnyAny(v, configChildren)) {
+      let a = startsWithAnyAny(v, configChildren)
+      let cfg_child = getStackTopS(stack);
+      cfg_child[trimKey(a)] = cfg_child[trimKey(a)] || [];
+      cfg_child[trimKey(a)].push(sliceFirst(v));
       //----------------------------------------------
     } else if (v.startsWith("$project")) {
       let proj = { folders: [], files: [], shaders: [] };
       vpco.project = proj;
       stack.push(proj);
     } else if (v.startsWith("$folder")) {
-      let folder = { folders: [], dynamicFiles: [], files: [], libs: [], impLibs: [], extLibs: [], excludes: [], data: v.split(' ').slice(1) };
+      let folder = { folders: [], dynamicFiles: [], files: [], libs: [], impLibs: [], extLibs: [], excludes: [], data: sliceFirst(v) };
       let project = getStackTopS(stack);
       project.folders.push(folder);
       stack.push(folder);
     } else if (v.startsWith("$shader")) {
-      let shader = v.split(' ').slice(1)
+      let shader = sliceFirst(v)
       let project = getStackTopS(stack);
       project.shaders.push(shader);
     } else if (v.startsWith("$file")) {
-      let file = { data: v.split(' ').slice(1) };
+      let file = { data: sliceFirst(v) };
       let folder = getStackTopS(stack);
       folder.files.push(file);
       stack.push(file);
       possibleScope = true;
     } else if (v.startsWith("$dynamicfile")) {
-      let dynFile = { data: v.split(' ').slice(1) };
+      let dynFile = { data: sliceFirst(v) };
       let folder = getStackTopS(stack);
       folder.dynamicFiles.push(dynFile);
     } else if (v.startsWith("$lib ")) {
-      let lib = { data: v.split(' ').slice(1) };
+      let lib = { data: sliceFirst(v) };
       let folder = getStackTopS(stack);
       folder.libs.push(lib);
     } else if (v.startsWith("$libexternal")) {
-      let libext = { data: v.split(' ').slice(1) };
+      let libext = { data: sliceFirst(v) };
       let folder = getStackTopS(stack);
       folder.extLibs.push(libext);
     } else if (v.startsWith("$implib")) {
-      let impLib = { data: v.split(' ').slice(1) };
+      let impLib = { data: sliceFirst(v) };
       let folder = getStackTopS(stack);
       folder.impLibs.push(impLib);
     } else if (v.startsWith("-$")) {
-      let exclude = { data: v.split(' ').slice(1) };
+      let exclude = { data: sliceFirst(v) };
       let folder = getStackTopS(stack);
       folder.excludes.push(exclude);
+      //----------------------------------------------
     } else if (v.startsWith("$additionaloptions")) {
       //This can appear anywhere, hopefully not floating.
-      let adnopt = { data: v.split(' ').slice(1) };
+      let adnopt = { data: sliceFirst(v) };
       let folder = getStackTopS(stack);
       folder["additionaloptions"] = adnopt;
     } else if (v.startsWith("$loadaddressmacroauto")) {
@@ -267,8 +229,8 @@ async function Parse(VPC_FILE) {
       stack.push(AddressMacros);
       vpco.others.push({ flag: "LoadAddressMacro", val: AddressMacros });
     } else {
-      console.warn("Unknown keyword", v);
-      const key = v.split(' ')[0];
+      console.warn("Unknown keyword", v, "Line: approx:", i);
+      const key = sliceFirst(v);
       MissingkeywordMap[key] = MissingkeywordMap[key] || 0;
       MissingkeywordMap[key]++;
     }
@@ -277,7 +239,6 @@ async function Parse(VPC_FILE) {
   if (scope != 0 && stack.length != 0) {
     throw ("Scope error!");
   }
-
 
 
   return (vpco);
