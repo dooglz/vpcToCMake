@@ -251,7 +251,7 @@ function Link(VPCOs) {
   let missingVPCOs = [
     "source_ppu_prx_ps3_base.vpc",
     "source_lib_x360_base.vpc",
-    "source_ppu_lib_ps3_base.vpc"];
+    "source_ppu_lib_ps3_base.vpc", "source_xex_x360_base.vpc", "source_dll_x360_base.vpc", "source_replay.vpc", "source_ppu_elf_ps3_base.vpc"];
 
   const findV = (fn) => VPCOs.find((v) => v.f == fn);
   const deMacro = (vcpo, str) => {
@@ -363,14 +363,14 @@ function Link(VPCOs) {
   function DeepMerge2(a, b) {
     if (typeof (b) === 'object') {
       if (Array.isArray(b)) {
-        return a.concat(b.map((v) => DeepMerge2(a, v)));
+        return a.concat(b.map((v) => DeepMerge2(GetMeANewOfThisType(v), v)));
       } else {
         for (let key in b) {
           if (a[key] === undefined) {
             a[key] = GetMeANewOfThisType(b[key]);
           }else if(typeof a[key] !== 'object'){
             //Already existing primative, skip
-            if(a[key] !== b[key] && key !== 'f'){
+            if(a[key] !== b[key] && key !== 'f' && key !== 'data'){
               console.warn("include flag overwrite: ", key,"-", a[key], b[key]);
             }
             continue;
